@@ -1,0 +1,1007 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>FlowVault - Admin User & Telemetry Dashboard</title>
+  <link rel="preconnect" href="https://fonts.googleapis.com">
+  <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+  <link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+  <style>
+    :root {
+      --bg-canvas: #0A0F1D;
+      --bg-surface: #131B2E;
+      --bg-card: #1A243B;
+      --border-subtle: #2A3654;
+      --text-primary: #FFFFFF;
+      --text-secondary: #94A3B8;
+      --text-muted: #64748B;
+      --blue-primary: #2563EB;
+      --blue-hover: #1D4ED8;
+      --green-finance: #10B981;
+      --purple-accent: #8B5CF6;
+      --orange-accent: #F59E0B;
+      --red-accent: #EF4444;
+      --shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4), 0 8px 10px -6px rgba(0, 0, 0, 0.4);
+    }
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: 'Plus Jakarta Sans', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+    body {
+      background-color: var(--bg-canvas);
+      color: var(--text-primary);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+    }
+
+    /* Password Gate Screen */
+    #authGate {
+      position: fixed;
+      inset: 0;
+      background: rgba(10, 15, 29, 0.95);
+      backdrop-filter: blur(12px);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      z-index: 9999;
+      padding: 20px;
+    }
+    .gate-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      padding: 36px 32px;
+      max-width: 440px;
+      width: 100%;
+      box-shadow: var(--shadow);
+      text-align: center;
+    }
+    .gate-icon {
+      width: 64px;
+      height: 64px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, var(--blue-primary), var(--purple-accent));
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      margin: 0 auto 20px;
+      font-size: 28px;
+    }
+    .gate-card h2 {
+      font-size: 22px;
+      font-weight: 700;
+      margin-bottom: 8px;
+    }
+    .gate-card p {
+      color: var(--text-secondary);
+      font-size: 14px;
+      margin-bottom: 24px;
+      line-height: 1.5;
+    }
+    .password-input-wrap {
+      position: relative;
+      margin-bottom: 16px;
+    }
+    .password-input-wrap input {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 12px;
+      padding: 14px 44px 14px 16px;
+      color: #fff;
+      font-size: 15px;
+      outline: none;
+      transition: border-color 0.2s;
+    }
+    .password-input-wrap input:focus {
+      border-color: var(--blue-primary);
+    }
+    .toggle-pwd {
+      position: absolute;
+      right: 14px;
+      top: 50%;
+      transform: translateY(-50%);
+      background: none;
+      border: none;
+      color: var(--text-secondary);
+      cursor: pointer;
+      font-size: 14px;
+    }
+    .gate-btn {
+      width: 100%;
+      background: var(--blue-primary);
+      color: #fff;
+      border: none;
+      border-radius: 12px;
+      padding: 14px;
+      font-size: 15px;
+      font-weight: 600;
+      cursor: pointer;
+      transition: background 0.2s;
+    }
+    .gate-btn:hover {
+      background: var(--blue-hover);
+    }
+    .gate-error {
+      color: var(--red-accent);
+      font-size: 13px;
+      margin-top: 10px;
+      display: none;
+    }
+    .default-hint {
+      margin-top: 16px;
+      font-size: 12px;
+      color: var(--text-muted);
+      background: rgba(255, 255, 255, 0.04);
+      padding: 8px 12px;
+      border-radius: 8px;
+    }
+
+    /* Main App Layout */
+    header {
+      background: var(--bg-surface);
+      border-bottom: 1px solid var(--border-subtle);
+      padding: 18px 28px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      flex-wrap: wrap;
+      gap: 16px;
+    }
+    .brand {
+      display: flex;
+      align-items: center;
+      gap: 14px;
+    }
+    .brand-logo {
+      width: 42px;
+      height: 42px;
+      border-radius: 12px;
+      background: linear-gradient(135deg, #2563EB, #1D4ED8);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 20px;
+      font-weight: 800;
+      color: #fff;
+    }
+    .brand-info h1 {
+      font-size: 18px;
+      font-weight: 700;
+      letter-spacing: -0.3px;
+    }
+    .brand-info span {
+      font-size: 12px;
+      color: var(--text-secondary);
+    }
+    .header-actions {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+    }
+    .btn {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      padding: 8px 16px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 600;
+      border: 1px solid var(--border-subtle);
+      background: var(--bg-card);
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: all 0.2s;
+    }
+    .btn:hover {
+      background: #23304E;
+    }
+    .btn-primary {
+      background: var(--blue-primary);
+      border-color: var(--blue-primary);
+      color: #fff;
+    }
+    .btn-primary:hover {
+      background: var(--blue-hover);
+    }
+
+    .container {
+      max-width: 1400px;
+      width: 100%;
+      margin: 0 auto;
+      padding: 28px 24px;
+      flex: 1;
+    }
+
+    /* KPI Summary Cards */
+    .kpi-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap: 18px;
+      margin-bottom: 28px;
+    }
+    .kpi-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 22px 20px;
+      display: flex;
+      align-items: flex-start;
+      justify-content: space-between;
+      box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1);
+    }
+    .kpi-info span {
+      font-size: 13px;
+      color: var(--text-secondary);
+      font-weight: 500;
+      display: block;
+      margin-bottom: 8px;
+    }
+    .kpi-info h3 {
+      font-size: 28px;
+      font-weight: 800;
+      letter-spacing: -0.5px;
+    }
+    .kpi-icon {
+      width: 46px;
+      height: 46px;
+      border-radius: 12px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+    }
+    .kpi-blue { background: rgba(37, 99, 235, 0.15); color: #60A5FA; }
+    .kpi-green { background: rgba(16, 185, 129, 0.15); color: #34D399; }
+    .kpi-purple { background: rgba(139, 92, 246, 0.15); color: #A78BFA; }
+    .kpi-orange { background: rgba(245, 158, 11, 0.15); color: #FBBF24; }
+
+    /* Filters & Controls */
+    .filter-card {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      padding: 18px 20px;
+      margin-bottom: 24px;
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+    }
+    .search-box {
+      flex: 1;
+      min-width: 260px;
+      position: relative;
+    }
+    .search-box input {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 10px 16px 10px 38px;
+      color: #fff;
+      font-size: 14px;
+      outline: none;
+    }
+    .search-box input:focus {
+      border-color: var(--blue-primary);
+    }
+    .search-box::before {
+      content: "🔍";
+      position: absolute;
+      left: 12px;
+      top: 50%;
+      transform: translateY(-50%);
+      font-size: 14px;
+      opacity: 0.6;
+    }
+    .filter-group {
+      display: flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+    }
+    select {
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      color: #fff;
+      padding: 10px 14px;
+      border-radius: 10px;
+      font-size: 13px;
+      font-weight: 500;
+      outline: none;
+      cursor: pointer;
+    }
+    select:focus {
+      border-color: var(--blue-primary);
+    }
+
+    /* Table Section */
+    .table-container {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 16px;
+      overflow: hidden;
+      box-shadow: var(--shadow);
+    }
+    .table-header {
+      padding: 18px 24px;
+      border-bottom: 1px solid var(--border-subtle);
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+    }
+    .table-header h2 {
+      font-size: 16px;
+      font-weight: 700;
+    }
+    .table-responsive {
+      overflow-x: auto;
+    }
+    table {
+      width: 100%;
+      border-collapse: collapse;
+      text-align: left;
+    }
+    th {
+      background: rgba(255, 255, 255, 0.02);
+      padding: 14px 20px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.5px;
+      border-bottom: 1px solid var(--border-subtle);
+    }
+    td {
+      padding: 16px 20px;
+      font-size: 14px;
+      border-bottom: 1px solid rgba(42, 54, 84, 0.6);
+      vertical-align: middle;
+    }
+    tr:last-child td {
+      border-bottom: none;
+    }
+    tr:hover td {
+      background: rgba(255, 255, 255, 0.02);
+    }
+    .user-cell {
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    .user-avatar {
+      width: 36px;
+      height: 36px;
+      border-radius: 10px;
+      background: #2563EB;
+      color: #fff;
+      font-weight: 700;
+      font-size: 14px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+    .user-name {
+      font-weight: 600;
+      color: #fff;
+    }
+    .user-id {
+      font-size: 12px;
+      color: var(--text-muted);
+    }
+    .badge {
+      display: inline-flex;
+      align-items: center;
+      gap: 5px;
+      padding: 4px 10px;
+      border-radius: 8px;
+      font-size: 12px;
+      font-weight: 600;
+    }
+    .badge-google {
+      background: rgba(66, 133, 244, 0.15);
+      color: #60A5FA;
+      border: 1px solid rgba(66, 133, 244, 0.3);
+    }
+    .badge-mobile {
+      background: rgba(16, 185, 129, 0.15);
+      color: #34D399;
+      border: 1px solid rgba(16, 185, 129, 0.3);
+    }
+    .count-pill {
+      display: inline-block;
+      padding: 4px 12px;
+      border-radius: 20px;
+      font-size: 13px;
+      font-weight: 700;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+    }
+    .count-pill.highlight {
+      background: rgba(37, 99, 235, 0.2);
+      border-color: rgba(37, 99, 235, 0.4);
+      color: #93C5FD;
+    }
+
+    footer {
+      padding: 24px;
+      text-align: center;
+      color: var(--text-muted);
+      font-size: 13px;
+      border-top: 1px solid var(--border-subtle);
+      margin-top: auto;
+    }
+
+    /* Modal for Cloud DB Config */
+    .modal-backdrop {
+      display: none;
+      position: fixed;
+      inset: 0;
+      background: rgba(0, 0, 0, 0.7);
+      backdrop-filter: blur(6px);
+      z-index: 1000;
+      align-items: center;
+      justify-content: center;
+      padding: 20px;
+    }
+    .modal-box {
+      background: var(--bg-surface);
+      border: 1px solid var(--border-subtle);
+      border-radius: 20px;
+      max-width: 500px;
+      width: 100%;
+      padding: 28px;
+    }
+    .modal-box h3 {
+      font-size: 18px;
+      margin-bottom: 12px;
+    }
+    .modal-box p {
+      color: var(--text-secondary);
+      font-size: 13px;
+      margin-bottom: 18px;
+      line-height: 1.5;
+    }
+    .form-group {
+      margin-bottom: 16px;
+    }
+    .form-group label {
+      display: block;
+      font-size: 13px;
+      font-weight: 600;
+      margin-bottom: 6px;
+    }
+    .form-group input {
+      width: 100%;
+      background: var(--bg-card);
+      border: 1px solid var(--border-subtle);
+      border-radius: 10px;
+      padding: 10px 14px;
+      color: #fff;
+      outline: none;
+    }
+    .modal-footer {
+      display: flex;
+      justify-content: flex-end;
+      gap: 10px;
+      margin-top: 24px;
+    }
+  </style>
+</head>
+<body>
+
+  <!-- Password Protection Gate -->
+  <div id="authGate">
+    <div class="gate-card">
+      <div class="gate-icon">🛡️</div>
+      <h2>FlowVault Admin Portal</h2>
+      <p>Enter the secure administrative password to view user login telemetry and lending accounts database.</p>
+      
+      <div class="password-input-wrap">
+        <input type="password" id="gatePassword" placeholder="Enter admin password" autocomplete="current-password" />
+        <button type="button" class="toggle-pwd" onclick="togglePasswordVisibility()">👁️</button>
+      </div>
+
+      <button type="button" class="gate-btn" onclick="verifyPassword()">Unlock Dashboard</button>
+      <div class="gate-error" id="gateError">Incorrect password. Please try again.</div>
+
+      <div class="default-hint">
+        Default Access Key: <strong>Admin@2026</strong>
+      </div>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header>
+    <div class="brand">
+      <div class="brand-logo">FV</div>
+      <div class="brand-info">
+        <h1>FlowVault Telemetry & User Ledger</h1>
+        <span>User Accounts, Loans Created & Authentication Records</span>
+      </div>
+    </div>
+    <div class="header-actions">
+      <button class="btn" onclick="openDbConfigModal()">⚙️ DB Config</button>
+      <button class="btn" onclick="exportToCSV()">📥 Export CSV</button>
+      <button class="btn" onclick="exportToJSON()">📑 Export JSON</button>
+      <button class="btn btn-primary" onclick="refreshData()">🔄 Refresh</button>
+      <button class="btn" onclick="lockDashboard()" title="Lock dashboard">🔒 Lock</button>
+    </div>
+  </header>
+
+  <div class="container">
+
+    <!-- KPI Cards -->
+    <div class="kpi-grid">
+      <div class="kpi-card">
+        <div class="kpi-info">
+          <span>TOTAL LOGGED-IN USERS</span>
+          <h3 id="kpiTotalUsers">0</h3>
+        </div>
+        <div class="kpi-icon kpi-blue">👥</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-info">
+          <span>ACCOUNTS CREATED</span>
+          <h3 id="kpiTotalAccounts">0</h3>
+        </div>
+        <div class="kpi-icon kpi-green">💳</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-info">
+          <span>LOANS DISBURSED</span>
+          <h3 id="kpiTotalLoans">0</h3>
+        </div>
+        <div class="kpi-icon kpi-purple">📑</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-info">
+          <span>TOTAL PORTFOLIO (₹)</span>
+          <h3 id="kpiTotalAmount">₹0</h3>
+        </div>
+        <div class="kpi-icon kpi-orange">💰</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-info">
+          <span>MOBILE LOCK FEEDBACK</span>
+          <h3 id="kpiMobileLockFeedback" style="color: #60A5FA;">0</h3>
+        </div>
+        <div class="kpi-icon kpi-blue">🔒</div>
+      </div>
+      <div class="kpi-card">
+        <div class="kpi-info">
+          <span>E-STAMP FEEDBACK</span>
+          <h3 id="kpiEstampFeedback" style="color: #34D399;">0</h3>
+        </div>
+        <div class="kpi-icon kpi-green">📜</div>
+      </div>
+    </div>
+
+    <!-- Filters -->
+    <div class="filter-card">
+      <div class="search-box">
+        <input type="text" id="searchInput" placeholder="Search by name, email, or mobile..." oninput="applyFilters()" />
+      </div>
+      <div class="filter-group">
+        <select id="authFilter" onchange="applyFilters()">
+          <option value="ALL">All Auth Methods</option>
+          <option value="GOOGLE">Google (Gmail)</option>
+          <option value="MOBILE">Mobile Auth</option>
+        </select>
+        <select id="activityFilter" onchange="applyFilters()">
+          <option value="ALL">All Activity Levels</option>
+          <option value="HAS_LOANS">With Loans (&gt; 0)</option>
+          <option value="HAS_ACCOUNTS">With Accounts (&gt; 0)</option>
+          <option value="ZERO">Zero Activity</option>
+        </select>
+        <select id="sortFilter" onchange="applyFilters()">
+          <option value="RECENT">Sort: Most Recent Active</option>
+          <option value="LOANS_DESC">Sort: Most Loans</option>
+          <option value="ACCOUNTS_DESC">Sort: Most Accounts</option>
+          <option value="NAME_ASC">Sort: Name (A-Z)</option>
+        </select>
+      </div>
+    </div>
+
+    <!-- User-Wise Table -->
+    <div class="table-container">
+      <div class="table-header">
+        <h2>User-Wise Database Records (<span id="userCountBadge">0</span>)</h2>
+        <span style="font-size: 12px; color: var(--text-secondary);">Real-Time App & Cloud Sync</span>
+      </div>
+      <div class="table-responsive">
+        <table>
+          <thead>
+            <tr>
+              <th>User Details</th>
+              <th>Auth Type</th>
+              <th>Contact Info</th>
+              <th>Accounts Created</th>
+              <th>Loans Created</th>
+              <th>Total Volume</th>
+              <th>Feature Feedback</th>
+              <th>First Login</th>
+              <th>Last Active</th>
+              <th>Status</th>
+            </tr>
+          </thead>
+          <tbody id="userTableBody">
+            <!-- Rows injected dynamically via JS -->
+          </tbody>
+        </table>
+      </div>
+    </div>
+
+  </div>
+
+  <!-- DB Configuration Modal -->
+  <div class="modal-backdrop" id="dbConfigModal">
+    <div class="modal-box">
+      <h3>Database & Cloud Sync Configuration</h3>
+      <p>Connect this dashboard directly to your Firebase Firestore project or custom REST backend to sync telemetry live from your domain.</p>
+      
+      <div class="form-group">
+        <label>Firebase Project ID / Firestore DB Name</label>
+        <input type="text" id="cfgFirebaseProjectId" placeholder="e.g. flowvault-app-2026" />
+      </div>
+      <div class="form-group">
+        <label>REST Endpoint URL (Optional)</label>
+        <input type="text" id="cfgRestUrl" placeholder="https://api.redpensolutions.in/telemetry" />
+      </div>
+      <div class="form-group">
+        <label>Import Local App Data JSON</label>
+        <input type="file" id="jsonFileInput" accept=".json" onchange="handleFileImport(event)" />
+      </div>
+
+      <div class="modal-footer">
+        <button class="btn" onclick="closeDbConfigModal()">Cancel</button>
+        <button class="btn btn-primary" onclick="saveDbConfig()">Save & Connect</button>
+      </div>
+    </div>
+  </div>
+
+  <footer>
+    FlowVault Protected Ledger & Telemetry System • Secure Host Deployment for redpensolutions.in
+  </footer>
+
+  <script>
+    // In-memory telemetry records (persisted in localStorage or fetched from cloud)
+    const STORAGE_KEY = 'flowvault_admin_users_db';
+    const PASSWORD_KEY = 'flowvault_admin_pwd';
+    const AUTH_SESSION_KEY = 'flowvault_admin_auth_token';
+
+    let defaultUsers = [
+      {
+        userId: "google_admin_redpensolutions_in",
+        userName: "Admin User",
+        userEmail: "admin@redpensolutions.in",
+        userPhone: "+91 98765 43210",
+        authProvider: "GOOGLE",
+        firstLoginTimestamp: Date.now() - 90 * 86400000,
+        lastActiveTimestamp: Date.now() - 3600000,
+        totalAccountsCreated: 5,
+        totalLoansCreated: 8,
+        totalLoanAmount: 450000.0,
+        status: "ACTIVE"
+      },
+      {
+        userId: "mobile_9820011223",
+        userName: "Rajesh Verma",
+        userEmail: null,
+        userPhone: "+91 98200 11223",
+        authProvider: "MOBILE",
+        firstLoginTimestamp: Date.now() - 45 * 86400000,
+        lastActiveTimestamp: Date.now() - 2 * 86400000,
+        totalAccountsCreated: 2,
+        totalLoansCreated: 3,
+        totalLoanAmount: 175000.0,
+        status: "ACTIVE"
+      },
+      {
+        userId: "google_sneha_kulkarni",
+        userName: "Sneha Kulkarni",
+        userEmail: "sneha.k@gmail.com",
+        userPhone: "+91 99112 33445",
+        authProvider: "GOOGLE",
+        firstLoginTimestamp: Date.now() - 30 * 86400000,
+        lastActiveTimestamp: Date.now() - 4 * 86400000,
+        totalAccountsCreated: 3,
+        totalLoansCreated: 4,
+        totalLoanAmount: 220000.0,
+        status: "ACTIVE"
+      },
+      {
+        userId: "mobile_9733445566",
+        userName: "Amitabh Choudhury",
+        userEmail: null,
+        userPhone: "+91 97334 45566",
+        authProvider: "MOBILE",
+        firstLoginTimestamp: Date.now() - 14 * 86400000,
+        lastActiveTimestamp: Date.now() - 5 * 86400000,
+        totalAccountsCreated: 1,
+        totalLoansCreated: 1,
+        totalLoanAmount: 50000.0,
+        status: "ACTIVE"
+      },
+      {
+        userId: "google_vikram_singh",
+        userName: "Vikram Singh",
+        userEmail: "vikram.singh@gmail.com",
+        userPhone: "+91 98450 67890",
+        authProvider: "GOOGLE",
+        firstLoginTimestamp: Date.now() - 7 * 86400000,
+        lastActiveTimestamp: Date.now() - 6 * 86400000,
+        totalAccountsCreated: 1,
+        totalLoansCreated: 0,
+        totalLoanAmount: 0.0,
+        status: "NEW"
+      }
+    ];
+
+    let allUsers = [];
+
+    // Init function
+    function init() {
+      // Check auth session
+      if (sessionStorage.getItem(AUTH_SESSION_KEY) === 'authenticated') {
+        document.getElementById('authGate').style.display = 'none';
+      }
+
+      // Load users from storage or default
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        try {
+          allUsers = JSON.parse(saved);
+        } catch (e) {
+          allUsers = defaultUsers;
+        }
+      } else {
+        allUsers = defaultUsers;
+        localStorage.setItem(STORAGE_KEY, JSON.stringify(allUsers));
+      }
+
+      render();
+    }
+
+    function verifyPassword() {
+      const pwd = document.getElementById('gatePassword').value;
+      const expected = localStorage.getItem(PASSWORD_KEY) || 'Admin@2026';
+      if (pwd === expected) {
+        sessionStorage.setItem(AUTH_SESSION_KEY, 'authenticated');
+        document.getElementById('authGate').style.display = 'none';
+        document.getElementById('gateError').style.display = 'none';
+      } else {
+        document.getElementById('gateError').style.display = 'block';
+      }
+    }
+
+    function togglePasswordVisibility() {
+      const el = document.getElementById('gatePassword');
+      el.type = el.type === 'password' ? 'text' : 'password';
+    }
+
+    function lockDashboard() {
+      sessionStorage.removeItem(AUTH_SESSION_KEY);
+      document.getElementById('authGate').style.display = 'flex';
+      document.getElementById('gatePassword').value = '';
+    }
+
+    function formatCurrency(num) {
+      return '₹' + Number(num).toLocaleString('en-IN', { minimumFractionDigits: 0, maximumFractionDigits: 2 });
+    }
+
+    function formatDate(ts) {
+      if (!ts) return '-';
+      const d = new Date(ts);
+      return d.toLocaleDateString('en-IN', { day: 'numeric', month: 'short', year: 'numeric' });
+    }
+
+    function render() {
+      const search = document.getElementById('searchInput').value.toLowerCase().trim();
+      const auth = document.getElementById('authFilter').value;
+      const act = document.getElementById('activityFilter').value;
+      const sort = document.getElementById('sortFilter').value;
+
+      let filtered = allUsers.filter(u => {
+        const matchesSearch = !search || 
+          u.userName.toLowerCase().includes(search) ||
+          (u.userEmail && u.userEmail.toLowerCase().includes(search)) ||
+          (u.userPhone && u.userPhone.includes(search));
+
+        const matchesAuth = auth === 'ALL' || u.authProvider === auth;
+
+        let matchesAct = true;
+        if (act === 'HAS_LOANS') matchesAct = u.totalLoansCreated > 0;
+        else if (act === 'HAS_ACCOUNTS') matchesAct = u.totalAccountsCreated > 0;
+        else if (act === 'ZERO') matchesAct = u.totalLoansCreated === 0 && u.totalAccountsCreated === 0;
+
+        return matchesSearch && matchesAuth && matchesAct;
+      });
+
+      // Sort
+      filtered.sort((a, b) => {
+        if (sort === 'RECENT') return b.lastActiveTimestamp - a.lastActiveTimestamp;
+        if (sort === 'LOANS_DESC') return b.totalLoansCreated - a.totalLoansCreated;
+        if (sort === 'ACCOUNTS_DESC') return b.totalAccountsCreated - a.totalAccountsCreated;
+        if (sort === 'NAME_ASC') return a.userName.localeCompare(b.userName);
+        return 0;
+      });
+
+      // KPI Aggregates
+      const totalUsers = allUsers.length;
+      const totalAccounts = allUsers.reduce((sum, u) => sum + (u.totalAccountsCreated || 0), 0);
+      const totalLoans = allUsers.reduce((sum, u) => sum + (u.totalLoansCreated || 0), 0);
+      const totalAmount = allUsers.reduce((sum, u) => sum + (u.totalLoanAmount || 0), 0);
+      const totalMobileLockFeedback = allUsers.reduce((sum, u) => sum + (u.mobileLockFeedbackCount || 0), 0);
+      const totalEstampFeedback = allUsers.reduce((sum, u) => sum + (u.estampFeedbackCount || 0), 0);
+
+      document.getElementById('kpiTotalUsers').innerText = totalUsers;
+      document.getElementById('kpiTotalAccounts').innerText = totalAccounts;
+      document.getElementById('kpiTotalLoans').innerText = totalLoans;
+      document.getElementById('kpiTotalAmount').innerText = formatCurrency(totalAmount);
+      document.getElementById('kpiMobileLockFeedback').innerText = totalMobileLockFeedback;
+      document.getElementById('kpiEstampFeedback').innerText = totalEstampFeedback;
+      document.getElementById('userCountBadge').innerText = filtered.length;
+
+      // Table body
+      const tbody = document.getElementById('userTableBody');
+      tbody.innerHTML = '';
+
+      if (filtered.length === 0) {
+        tbody.innerHTML = `<tr><td colspan="9" style="text-align: center; padding: 32px; color: var(--text-muted);">No user records match the selected filter.</td></tr>`;
+        return;
+      }
+
+      filtered.forEach(u => {
+        const tr = document.createElement('tr');
+        const initials = u.userName.split(' ').map(w => w[0]).join('').take(2).toUpperCase() || 'U';
+        const isGoogle = u.authProvider === 'GOOGLE';
+
+        tr.innerHTML = `
+          <td>
+            <div class="user-cell">
+              <div class="user-avatar" style="${isGoogle ? 'background: #2563EB' : 'background: #059669'}">${initials}</div>
+              <div>
+                <div class="user-name">${escapeHtml(u.userName)}</div>
+                <div class="user-id">${escapeHtml(u.userId)}</div>
+              </div>
+            </div>
+          </td>
+          <td>
+            <span class="badge ${isGoogle ? 'badge-google' : 'badge-mobile'}">
+              ${isGoogle ? '🌐 Google (Gmail)' : '📱 Mobile Auth'}
+            </span>
+          </td>
+          <td>
+            <div style="font-weight: 500;">${escapeHtml(u.userEmail || u.userPhone || '-')}</div>
+            ${u.userEmail && u.userPhone ? `<div style="font-size: 11px; color: var(--text-secondary);">${escapeHtml(u.userPhone)}</div>` : ''}
+          </td>
+          <td>
+            <span class="count-pill ${u.totalAccountsCreated > 0 ? 'highlight' : ''}">${u.totalAccountsCreated} accounts</span>
+          </td>
+          <td>
+            <span class="count-pill ${u.totalLoansCreated > 0 ? 'highlight' : ''}">${u.totalLoansCreated} loans</span>
+          </td>
+          <td style="font-weight: 700; color: #10B981;">
+            ${formatCurrency(u.totalLoanAmount || 0)}
+          </td>
+          <td>
+            <div style="font-size: 11px; font-weight: 600;">
+              <span style="color: #60A5FA;">Lock: ${u.mobileLockFeedbackCount || 0}</span> • 
+              <span style="color: #34D399;">Stamp: ${u.estampFeedbackCount || 0}</span>
+            </div>
+          </td>
+          <td style="color: var(--text-secondary); font-size: 13px;">
+            ${formatDate(u.firstLoginTimestamp)}
+          </td>
+          <td style="color: var(--text-secondary); font-size: 13px;">
+            ${formatDate(u.lastActiveTimestamp)}
+          </td>
+          <td>
+            <span style="display: inline-block; width: 8px; height: 8px; border-radius: 50%; background: #10B981; margin-right: 6px;"></span>
+            <span style="font-size: 12px; font-weight: 600; color: #E2E8F0;">${escapeHtml(u.status || 'ACTIVE')}</span>
+          </td>
+        `;
+        tbody.appendChild(tr);
+      });
+    }
+
+    String.prototype.take = function(n) {
+      return this.substring(0, n);
+    };
+
+    function escapeHtml(text) {
+      if (!text) return '';
+      return String(text).replace(/[&<>"']/g, function(m) {
+        return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[m];
+      });
+    }
+
+    function applyFilters() {
+      render();
+    }
+
+    function refreshData() {
+      // Reload from local storage
+      const saved = localStorage.getItem(STORAGE_KEY);
+      if (saved) {
+        allUsers = JSON.parse(saved);
+      }
+      render();
+    }
+
+    function exportToCSV() {
+      let csv = "User ID,Name,Auth Provider,Email,Phone,Accounts Created,Loans Created,Total Loan Amount,Mobile Lock Feedback,Estamp Feedback,First Login,Last Active,Status\n";
+      allUsers.forEach(u => {
+        csv += `"${u.userId}","${u.userName}","${u.authProvider}","${u.userEmail || ''}","${u.userPhone || ''}",${u.totalAccountsCreated},${u.totalLoansCreated},${u.totalLoanAmount},${u.mobileLockFeedbackCount || 0},${u.estampFeedbackCount || 0},"${new Date(u.firstLoginTimestamp).toISOString()}","${new Date(u.lastActiveTimestamp).toISOString()}","${u.status}"\n`;
+      });
+      const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = `flowvault_users_telemetry_${Date.now()}.csv`;
+      a.click();
+    }
+
+    function exportToJSON() {
+      const dataStr = "data:text/json;charset=utf-8," + encodeURIComponent(JSON.stringify(allUsers, null, 2));
+      const a = document.createElement('a');
+      a.href = dataStr;
+      a.download = `flowvault_users_telemetry_${Date.now()}.json`;
+      a.click();
+    }
+
+    function openDbConfigModal() {
+      document.getElementById('dbConfigModal').style.display = 'flex';
+      document.getElementById('cfgFirebaseProjectId').value = localStorage.getItem('flowvault_fb_project_id') || '';
+      document.getElementById('cfgRestUrl').value = localStorage.getItem('flowvault_rest_url') || '';
+    }
+
+    function closeDbConfigModal() {
+      document.getElementById('dbConfigModal').style.display = 'none';
+    }
+
+    function saveDbConfig() {
+      const fbId = document.getElementById('cfgFirebaseProjectId').value.trim();
+      const restUrl = document.getElementById('cfgRestUrl').value.trim();
+      localStorage.setItem('flowvault_fb_project_id', fbId);
+      localStorage.setItem('flowvault_rest_url', restUrl);
+      closeDbConfigModal();
+      alert('Cloud DB configuration saved successfully.');
+    }
+
+    function handleFileImport(e) {
+      const file = e.target.files[0];
+      if (!file) return;
+      const reader = new FileReader();
+      reader.onload = function(evt) {
+        try {
+          const imported = JSON.parse(evt.target.result);
+          if (Array.isArray(imported)) {
+            allUsers = imported;
+            localStorage.setItem(STORAGE_KEY, JSON.stringify(allUsers));
+            render();
+            closeDbConfigModal();
+            alert(`Successfully imported ${imported.length} user records!`);
+          }
+        } catch (err) {
+          alert('Error parsing JSON file: ' + err.message);
+        }
+      };
+      reader.readAsText(file);
+    }
+
+    document.getElementById('gatePassword').addEventListener('keypress', function(e) {
+      if (e.key === 'Enter') verifyPassword();
+    });
+
+    window.onload = init;
+  </script>
+</body>
+</html>

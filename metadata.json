@@ -1,0 +1,7 @@
+{
+  "name": "FlowVault",
+  "description": "Comprehensive loan management, debt tracker, and virtual account ledger with hardware AES-256 local secured storage and automated Google Drive cloud sync.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
+
