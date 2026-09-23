@@ -9,11 +9,13 @@ import com.example.data.auth.UserSession
 import com.example.data.database.AppDatabase
 import com.example.data.model.AppNotification
 import com.example.data.model.NotificationType
+import com.example.data.model.BillingCycle
 import com.example.data.model.Borrower
 import com.example.data.model.CalculationResult
 import com.example.data.model.LedgerEntry
 import com.example.data.model.LendingCalculations
 import com.example.data.model.Loan
+import com.example.data.model.PlanTier
 import com.example.data.model.UserTelemetryEntity
 import com.example.data.model.VirtualAccount
 import com.example.data.repository.LoanRepository
@@ -337,10 +339,82 @@ class LoanViewModel(application: Application) : AndroidViewModel(application) {
     // User Account Profile & Security Settings
     private val securityPrefs = getApplication<Application>().getSharedPreferences("flowvault_security_prefs", Context.MODE_PRIVATE)
 
+    // Subscription & Plan States
+    val currentPlanTier = MutableStateFlow(
+        if (securityPrefs.getString("user_plan_tier", "FREE") == "PRO") PlanTier.PRO else PlanTier.FREE
+    )
+    val currentBillingCycle = MutableStateFlow(
+        try {
+            BillingCycle.valueOf(securityPrefs.getString("user_billing_cycle", "YEARLY") ?: "YEARLY")
+        } catch (e: Exception) {
+            BillingCycle.YEARLY
+        }
+    )
+    val driveSyncPurchasedInFree = MutableStateFlow(
+        securityPrefs.getBoolean("drive_sync_purchased_in_free", false)
+    )
+
+    val isProPlan: StateFlow<Boolean> = currentPlanTier
+        .map { it == PlanTier.PRO }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, currentPlanTier.value == PlanTier.PRO)
+
+    val isDriveSyncAccessible: StateFlow<Boolean> = combine(currentPlanTier, driveSyncPurchasedInFree) { tier, purchased ->
+        tier == PlanTier.PRO || purchased
+    }.stateIn(viewModelScope, SharingStarted.Eagerly, currentPlanTier.value == PlanTier.PRO || driveSyncPurchasedInFree.value)
+
+    val currentPlan: StateFlow<String> = combine(currentPlanTier, currentBillingCycle) { tier, cycle ->
+        if (tier == PlanTier.PRO) {
+            "Pro Plan (${cycle.billingText})"
+        } else {
+            "Free Tier"
+        }
+    }.stateIn(
+        viewModelScope,
+        SharingStarted.Eagerly,
+        if (currentPlanTier.value == PlanTier.PRO) "Pro Plan (${currentBillingCycle.value.billingText})" else "Free Tier"
+    )
+
+    fun upgradeToPro(cycle: BillingCycle = BillingCycle.YEARLY) {
+        securityPrefs.edit()
+            .putString("user_plan_tier", "PRO")
+            .putString("user_billing_cycle", cycle.name)
+            .apply()
+        currentBillingCycle.value = cycle
+        currentPlanTier.value = PlanTier.PRO
+    }
+
+    fun downgradeToFree() {
+        securityPrefs.edit()
+            .putString("user_plan_tier", "FREE")
+            .apply()
+        currentPlanTier.value = PlanTier.FREE
+    }
+
+    fun purchaseDriveSyncInFree(onSuccess: () -> Unit = {}) {
+        securityPrefs.edit()
+            .putBoolean("drive_sync_purchased_in_free", true)
+            .apply()
+        driveSyncPurchasedInFree.value = true
+        onSuccess()
+    }
+
+    val activeLoansCount: StateFlow<Int> = allLoans
+        .map { loans -> loans.count { it.status != "SETTLED" && it.balanceRemaining > 0.01 } }
+        .stateIn(viewModelScope, SharingStarted.Eagerly, 0)
+
+    fun canAddActiveLoan(): Boolean {
+        val activeCount = allLoans.value.count { it.status != "SETTLED" && it.balanceRemaining > 0.01 }
+        return activeCount < currentPlanTier.value.maxActiveLoans
+    }
+
+    fun canAddVirtualAccount(): Boolean {
+        val count = allVirtualAccounts.value.size
+        return count < currentPlanTier.value.maxVirtualAccounts
+    }
+
     val userName = MutableStateFlow("Admin User")
     val userEmail = MutableStateFlow("admin@redpensolutions.in")
     val userPhone = MutableStateFlow("+91 98765 43210")
-    val currentPlan = MutableStateFlow("Free Tier")
     val pinSecurityEnabled = MutableStateFlow(securityPrefs.getBoolean("pin_enabled", false))
     val biometricSecurityEnabled = MutableStateFlow(securityPrefs.getBoolean("biometric_enabled", false))
     val faceUnlockEnabled = MutableStateFlow(securityPrefs.getBoolean("face_enabled", false))
@@ -867,6 +941,10 @@ class LoanViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     fun setDriveSyncActivated(activated: Boolean, onComplete: ((Boolean, String) -> Unit)? = null) {
+        if (activated && !isDriveSyncAccessible.value) {
+            onComplete?.invoke(false, "Google Drive Safe Backup requires a ₹59 one-time purchase on Free Tier, or is included in Pro Plan.")
+            return
+        }
         driveSyncManager.setDriveSyncActivated(activated)
         if (activated) {
             driveSyncManager.setAutoSyncEnabled(true)

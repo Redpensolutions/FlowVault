@@ -1,6 +1,7 @@
 package com.example.ui.screens
 
 import android.widget.Toast
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -72,6 +73,9 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.security.DriveSyncStatus
 import com.example.ui.components.AutoShrinkButtonText
+import com.example.ui.components.DriveSyncPurchaseDialog
+import com.example.ui.components.ProBadge
+import com.example.ui.components.SubscriptionPlansDialog
 import com.example.ui.theme.BackgroundClean
 import com.example.ui.theme.BlueDark
 import com.example.ui.theme.BlueLight
@@ -102,10 +106,17 @@ fun SecuredSyncSubScreen(
     val driveState by viewModel.driveSyncState.collectAsStateWithLifecycle()
     val localInfo by viewModel.localSecuredSpaceInfo.collectAsStateWithLifecycle()
     val isSyncing by viewModel.isSyncing.collectAsStateWithLifecycle()
+    val isDriveAccessible by viewModel.isDriveSyncAccessible.collectAsStateWithLifecycle()
+    val isPro by viewModel.isProPlan.collectAsStateWithLifecycle()
+    val drivePurchased by viewModel.driveSyncPurchasedInFree.collectAsStateWithLifecycle()
+    val planTier by viewModel.currentPlanTier.collectAsStateWithLifecycle()
+    val billingCycle by viewModel.currentBillingCycle.collectAsStateWithLifecycle()
 
     var showConfirmRestoreLocal by remember { mutableStateOf(false) }
     var showConfirmRestoreDrive by remember { mutableStateOf(false) }
     var showDrivePermissionDialog by remember { mutableStateOf(false) }
+    var showDrivePurchaseDialog by remember { mutableStateOf(false) }
+    var showSubscriptionDialog by remember { mutableStateOf(false) }
     var showEditEmailDialog by remember { mutableStateOf(false) }
     var emailInput by remember(driveState.accountEmail) { mutableStateOf(driveState.accountEmail) }
 
@@ -461,16 +472,74 @@ fun SecuredSyncSubScreen(
                                 )
                                 Spacer(modifier = Modifier.width(4.dp))
                                 Text(
-                                    text = if (driveState.isDriveSyncActivated) "Sync Active" else "Optional • Off",
+                                    text = if (driveState.isDriveSyncActivated) {
+                                        "Sync Active"
+                                    } else if (isPro) {
+                                        "Included in Pro"
+                                    } else if (drivePurchased) {
+                                        "Unlocked (₹59 One-Time)"
+                                    } else {
+                                        "₹59 One-Time or Pro"
+                                    },
                                     fontSize = 11.sp,
                                     fontWeight = FontWeight.Bold,
-                                    color = if (driveState.isDriveSyncActivated) FinanceGreen else TextMuted
+                                    color = if (driveState.isDriveSyncActivated) FinanceGreen else if (isPro || drivePurchased) BluePrimary else TextMuted
                                 )
                             }
                         }
                     }
 
                     Spacer(modifier = Modifier.height(14.dp))
+
+                    if (!isDriveAccessible) {
+                        Card(
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = CardDefaults.cardColors(containerColor = Color(0xFFF1F5F9)),
+                            border = BorderStroke(1.dp, Color(0xFFCBD5E1))
+                        ) {
+                            Column(modifier = Modifier.padding(12.dp)) {
+                                Row(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.SpaceBetween,
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Column(modifier = Modifier.weight(1f)) {
+                                        Text(
+                                            text = "Google Drive Safe Backup",
+                                            fontSize = 12.sp,
+                                            fontWeight = FontWeight.Bold,
+                                            color = TextPrimary
+                                        )
+                                        Text(
+                                            text = "₹59 One-time purchase in Free Tier, or included with continuous Auto-Sync in Pro Plan.",
+                                            fontSize = 11.sp,
+                                            color = TextSecondary
+                                        )
+                                    }
+                                }
+                                Spacer(modifier = Modifier.height(8.dp))
+                                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                                    Button(
+                                        onClick = { showDrivePurchaseDialog = true },
+                                        colors = ButtonDefaults.buttonColors(containerColor = FinanceGreen),
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("Unlock for ₹59", fontSize = 11.sp, fontWeight = FontWeight.Bold)
+                                    }
+                                    OutlinedButton(
+                                        onClick = { showSubscriptionDialog = true },
+                                        shape = RoundedCornerShape(8.dp),
+                                        modifier = Modifier.weight(1f)
+                                    ) {
+                                        Text("View Pro Plan", fontSize = 11.sp, fontWeight = FontWeight.Bold, color = BluePrimary)
+                                    }
+                                }
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(12.dp))
+                    }
 
                     // Optional Drive Sync Activation Toggle
                     Row(
@@ -483,15 +552,23 @@ fun SecuredSyncSubScreen(
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
                         Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = "Activate Google Drive Sync",
-                                fontSize = 13.sp,
-                                fontWeight = FontWeight.Bold,
-                                color = TextPrimary
-                            )
+                            Row(verticalAlignment = Alignment.CenterVertically) {
+                                Text(
+                                    text = "Activate Google Drive Sync",
+                                    fontSize = 13.sp,
+                                    fontWeight = FontWeight.Bold,
+                                    color = TextPrimary
+                                )
+                                if (!isDriveAccessible) {
+                                    Spacer(modifier = Modifier.width(6.dp))
+                                    ProBadge(text = "₹59 / PRO")
+                                }
+                            }
                             Text(
                                 text = if (driveState.isDriveSyncActivated) {
                                     "Drive sync is active. Backups sync with your Google Drive AppData folder."
+                                } else if (!isDriveAccessible) {
+                                    "Requires ₹59 one-time unlock in Free Tier, or included in Pro Plan."
                                 } else {
                                     "Optional cloud backup. Turn on to synchronize local storage with Google Drive."
                                 },
@@ -504,7 +581,11 @@ fun SecuredSyncSubScreen(
                             checked = driveState.isDriveSyncActivated,
                             onCheckedChange = { activated ->
                                 if (activated) {
-                                    showDrivePermissionDialog = true
+                                    if (!isDriveAccessible) {
+                                        showDrivePurchaseDialog = true
+                                    } else {
+                                        showDrivePermissionDialog = true
+                                    }
                                 } else {
                                     viewModel.setDriveSyncActivated(false) { _, msg ->
                                         Toast.makeText(context, msg, Toast.LENGTH_SHORT).show()
@@ -967,6 +1048,47 @@ fun SecuredSyncSubScreen(
             dismissButton = {
                 OutlinedButton(onClick = { showEditEmailDialog = false }) {
                     Text("Cancel")
+                }
+            }
+        )
+    }
+
+    // Dialog: Drive Sync One-Time Purchase for Free Tier (Rs 59)
+    if (showDrivePurchaseDialog) {
+        DriveSyncPurchaseDialog(
+            onDismiss = { showDrivePurchaseDialog = false },
+            onConfirmPurchase = {
+                viewModel.purchaseDriveSyncInFree {
+                    showDrivePurchaseDialog = false
+                    Toast.makeText(context, "Google Drive Safe Backup unlocked for ₹59!", Toast.LENGTH_SHORT).show()
+                    showDrivePermissionDialog = true
+                }
+            },
+            onUpgradeToPro = {
+                showDrivePurchaseDialog = false
+                showSubscriptionDialog = true
+            }
+        )
+    }
+
+    // Dialog: Full Subscription Plans
+    if (showSubscriptionDialog) {
+        SubscriptionPlansDialog(
+            currentPlanTier = planTier,
+            currentBillingCycle = billingCycle,
+            driveSyncPurchasedInFree = drivePurchased,
+            onDismiss = { showSubscriptionDialog = false },
+            onSelectPro = { cycle ->
+                viewModel.upgradeToPro(cycle)
+                Toast.makeText(context, "Upgraded to FlowVault Pro (${cycle.cycleName})!", Toast.LENGTH_SHORT).show()
+            },
+            onSelectFree = {
+                viewModel.downgradeToFree()
+                Toast.makeText(context, "Switched to Free Tier", Toast.LENGTH_SHORT).show()
+            },
+            onPurchaseDriveSync = {
+                viewModel.purchaseDriveSyncInFree {
+                    Toast.makeText(context, "Google Drive Safe Backup unlocked for ₹59!", Toast.LENGTH_SHORT).show()
                 }
             }
         )

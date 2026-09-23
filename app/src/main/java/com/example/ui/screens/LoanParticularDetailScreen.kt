@@ -45,7 +45,9 @@ import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Payments
 import androidx.compose.material.icons.filled.Person
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Share
 import androidx.compose.material.icons.filled.TouchApp
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material.icons.filled.Tune
@@ -90,6 +92,9 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.LedgerEntry
 import com.example.data.model.Loan
 import com.example.ui.components.LoanDetailsDialog
+import com.example.ui.components.ProBadge
+import com.example.ui.components.ProFeatureLockedDialog
+import com.example.ui.components.SubscriptionPlansDialog
 import com.example.ui.components.formatCurrency
 import com.example.ui.theme.BackgroundClean
 import com.example.ui.theme.BluePrimary
@@ -101,6 +106,7 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.viewmodel.LoanViewModel
+import com.example.util.PdfExportHelper
 import java.text.NumberFormat
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -126,12 +132,21 @@ fun LoanParticularDetailScreen(
     val currentLoan = liveLoanList.find { it.id == loan.id } ?: loan
 
     val ledgerEntries by viewModel.getLedgerForLoan(currentLoan.id).collectAsStateWithLifecycle(emptyList())
+    val context = LocalContext.current
+    val isPro by viewModel.isProPlan.collectAsStateWithLifecycle()
+    val planTier by viewModel.currentPlanTier.collectAsStateWithLifecycle()
+    val billingCycle by viewModel.currentBillingCycle.collectAsStateWithLifecycle()
+    val drivePurchased by viewModel.driveSyncPurchasedInFree.collectAsStateWithLifecycle()
 
     var selectedTab by remember { mutableIntStateOf(0) } // 0 = Summary, 1 = Transactions
     var showOverflowMenu by remember { mutableStateOf(false) }
 
     // Dialog states
     var showFullLoanDetails by remember { mutableStateOf(false) }
+    var showProLockedDialog by remember { mutableStateOf(false) }
+    var lockedFeatureTitle by remember { mutableStateOf("") }
+    var lockedFeatureDesc by remember { mutableStateOf("") }
+    var showSubscriptionDialog by remember { mutableStateOf(false) }
     var showMobileLockDialog by remember { mutableStateOf(false) }
     var showEstampDialog by remember { mutableStateOf(false) }
     var showAddGuarantorDialog by remember { mutableStateOf(false) }
@@ -268,6 +283,68 @@ fun LoanParticularDetailScreen(
                                 },
                                 leadingIcon = {
                                     Icon(Icons.Default.Description, contentDescription = null, tint = BluePrimary)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Export to PDF")
+                                        if (!isPro) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            ProBadge()
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    if (!isPro) {
+                                        lockedFeatureTitle = "Export Loan to PDF"
+                                        lockedFeatureDesc = "Generating PDF statements with borrower ledger details and custom FlowVault branding is a Pro feature.\n\nIn Free Tier, PDF export is locked. Upgrade to Pro (₹99/mo) to export and share branded ledger statements."
+                                        showProLockedDialog = true
+                                    } else {
+                                        val pdf = PdfExportHelper.exportSingleLoanPdf(
+                                            context = context,
+                                            loan = currentLoan,
+                                            ledgerEntries = ledgerEntries,
+                                            currencySymbol = currencySymbol
+                                        )
+                                        PdfExportHelper.sharePdfFile(
+                                            context = context,
+                                            pdfFile = pdf,
+                                            subject = "Loan Statement - #${currentLoan.loanNumber} (${currentLoan.borrowerName})"
+                                        )
+                                    }
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = FinanceRed)
+                                }
+                            )
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Share WhatsApp")
+                                        if (!isPro) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            ProBadge()
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    showOverflowMenu = false
+                                    if (!isPro) {
+                                        lockedFeatureTitle = "WhatsApp Loan Card"
+                                        lockedFeatureDesc = "Sharing digital WhatsApp loan reminder cards with breakdown and FlowVault app branding is a Pro feature.\n\nIn Free Tier, WhatsApp card sharing is locked. Upgrade to Pro (₹99/mo) to generate and share WhatsApp cards directly."
+                                        showProLockedDialog = true
+                                    } else {
+                                        PdfExportHelper.shareSingleLoanToWhatsApp(
+                                            context = context,
+                                            loan = currentLoan,
+                                            currencySymbol = currencySymbol
+                                        )
+                                    }
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.Share, contentDescription = null, tint = FinanceGreen)
                                 }
                             )
                             DropdownMenuItem(
@@ -528,6 +605,40 @@ fun LoanParticularDetailScreen(
             confirmButton = {
                 TextButton(onClick = { showActionPickerSheet = false }) {
                     Text("Close")
+                }
+            }
+        )
+    }
+
+    if (showProLockedDialog) {
+        ProFeatureLockedDialog(
+            featureTitle = lockedFeatureTitle,
+            featureDescription = lockedFeatureDesc,
+            onDismiss = { showProLockedDialog = false },
+            onUpgrade = {
+                showProLockedDialog = false
+                showSubscriptionDialog = true
+            }
+        )
+    }
+
+    if (showSubscriptionDialog) {
+        SubscriptionPlansDialog(
+            currentPlanTier = planTier,
+            currentBillingCycle = billingCycle,
+            driveSyncPurchasedInFree = drivePurchased,
+            onDismiss = { showSubscriptionDialog = false },
+            onSelectPro = { cycle ->
+                viewModel.upgradeToPro(cycle)
+                Toast.makeText(context, "Upgraded to FlowVault Pro (${cycle.cycleName})!", Toast.LENGTH_SHORT).show()
+            },
+            onSelectFree = {
+                viewModel.downgradeToFree()
+                Toast.makeText(context, "Switched to Free Tier", Toast.LENGTH_SHORT).show()
+            },
+            onPurchaseDriveSync = {
+                viewModel.purchaseDriveSyncInFree {
+                    Toast.makeText(context, "Google Drive Safe Backup unlocked for ₹59!", Toast.LENGTH_SHORT).show()
                 }
             }
         )

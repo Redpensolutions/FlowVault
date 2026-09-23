@@ -99,6 +99,8 @@ import com.example.data.model.Borrower
 import com.example.data.model.CalculationResult
 import com.example.data.model.LendingCalculations
 import com.example.data.model.VirtualAccount
+import com.example.ui.components.ProBadge
+import com.example.ui.components.ProFeatureLockedDialog
 import com.example.ui.theme.BackgroundClean
 import com.example.ui.theme.BlueDark
 import com.example.ui.theme.BlueLight
@@ -125,6 +127,8 @@ fun AddLoanDialog(
     defaultInterestType: String = "SIMPLE",
     initialDirection: String = "GIVEN",
     initialBorrowerName: String = "",
+    isProPlan: Boolean = false,
+    onRequestUpgrade: () -> Unit = {},
     onDismiss: () -> Unit,
     onSaveBorrower: (Borrower) -> Unit = {},
     onConfirm: (
@@ -222,8 +226,12 @@ fun AddLoanDialog(
     }
 
     // Interest Controls
+    var showProFeatureLockedDialog by remember { mutableStateOf(false) }
+    var lockedFeatureTitle by remember { mutableStateOf("") }
+    var lockedFeatureDesc by remember { mutableStateOf("") }
+
     var addInterestOnThisLoan by remember { mutableStateOf(true) }
-    var interestType by remember { mutableStateOf(defaultInterestType) } // "SIMPLE", "COMPOUND", "FLAT"
+    var interestType by remember { mutableStateOf(if (!isProPlan && defaultInterestType == "COMPOUND") "SIMPLE" else defaultInterestType) } // "SIMPLE", "COMPOUND", "FLAT"
     var interestPeriod by remember { mutableStateOf("MONTHLY") } // "MONTHLY", "YEARLY"
     var interestRateStr by remember { mutableStateOf("2.0") }
     var interestStartDateStr by remember { mutableStateOf(todayStr) }
@@ -441,24 +449,42 @@ fun AddLoanDialog(
                     ) {
                         listOf("SIMPLE" to "Simple Interest", "COMPOUND" to "Compound", "FLAT" to "Flat Interest").forEach { (typeKey, label) ->
                             val isSel = interestType == typeKey
+                            val isCompoundLocked = typeKey == "COMPOUND" && !isProPlan
                             Box(
                                 modifier = Modifier
                                     .weight(1f)
                                     .clip(RoundedCornerShape(10.dp))
                                     .background(if (isSel) BluePrimary else BackgroundClean)
                                     .border(1.dp, if (isSel) BluePrimary else BorderSubtle, RoundedCornerShape(10.dp))
-                                    .clickable { interestType = typeKey }
+                                    .clickable {
+                                        if (isCompoundLocked) {
+                                            lockedFeatureTitle = "Compound Interest"
+                                            lockedFeatureDesc = "Compound Interest Calculation is a FlowVault Pro feature.\n\nFree Tier supports Simple & Flat interest calculations. Upgrade to Pro (₹99/mo) to unlock Compound Interest with customizable compounding intervals."
+                                            showProFeatureLockedDialog = true
+                                        } else {
+                                            interestType = typeKey
+                                        }
+                                    }
                                     .padding(vertical = 10.dp, horizontal = 4.dp),
                                 contentAlignment = Alignment.Center
                             ) {
-                                Text(
-                                    text = label,
-                                    fontSize = 12.sp,
-                                    fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                    color = if (isSel) Color.White else TextSecondary,
-                                    maxLines = 1,
-                                    overflow = TextOverflow.Ellipsis
-                                )
+                                Row(
+                                    verticalAlignment = Alignment.CenterVertically,
+                                    horizontalArrangement = Arrangement.Center
+                                ) {
+                                    Text(
+                                        text = label,
+                                        fontSize = 11.sp,
+                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                        color = if (isSel) Color.White else TextSecondary,
+                                        maxLines = 1,
+                                        overflow = TextOverflow.Ellipsis
+                                    )
+                                    if (isCompoundLocked) {
+                                        Spacer(modifier = Modifier.width(3.dp))
+                                        ProBadge()
+                                    }
+                                }
                             }
                         }
                     }
@@ -934,22 +960,40 @@ fun AddLoanDialog(
                         ) {
                             listOf("SIMPLE" to "Simple", "COMPOUND" to "Compound", "FLAT" to "Flat").forEach { (typeKey, label) ->
                                 val isSel = interestType == typeKey
+                                val isCompoundLocked = typeKey == "COMPOUND" && !isProPlan
                                 Box(
                                     modifier = Modifier
                                         .weight(1f)
                                         .clip(RoundedCornerShape(10.dp))
                                         .background(if (isSel) BluePrimary else BackgroundClean)
                                         .border(1.dp, if (isSel) BluePrimary else BorderSubtle, RoundedCornerShape(10.dp))
-                                        .clickable { interestType = typeKey }
+                                        .clickable {
+                                            if (isCompoundLocked) {
+                                                lockedFeatureTitle = "Compound Interest"
+                                                lockedFeatureDesc = "Compound Interest Calculation is a FlowVault Pro feature.\n\nFree Tier supports Simple & Flat interest calculations. Upgrade to Pro (₹99/mo) to unlock Compound Interest with customizable compounding intervals."
+                                                showProFeatureLockedDialog = true
+                                            } else {
+                                                interestType = typeKey
+                                            }
+                                        }
                                         .padding(vertical = 8.dp),
                                     contentAlignment = Alignment.Center
                                 ) {
-                                    Text(
-                                        text = label,
-                                        fontSize = 12.sp,
-                                        fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
-                                        color = if (isSel) Color.White else TextSecondary
-                                    )
+                                    Row(
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.Center
+                                    ) {
+                                        Text(
+                                            text = label,
+                                            fontSize = 12.sp,
+                                            fontWeight = if (isSel) FontWeight.Bold else FontWeight.Medium,
+                                            color = if (isSel) Color.White else TextSecondary
+                                        )
+                                        if (isCompoundLocked) {
+                                            Spacer(modifier = Modifier.width(4.dp))
+                                            ProBadge()
+                                        }
+                                    }
                                 }
                             }
                         }
@@ -1176,7 +1220,15 @@ fun AddLoanDialog(
 
                     // Button that triggers the picker dialog
                     OutlinedButton(
-                        onClick = { showAttachmentSourceDialog = true },
+                        onClick = {
+                            if (!isProPlan) {
+                                lockedFeatureTitle = "Photo Attachments"
+                                lockedFeatureDesc = "Photo attachments on transactions and loans is a FlowVault Pro feature.\n\nIn Free Tier, photo attachments are disabled. Upgrade to Pro (₹99/mo) to attach cheques, promissory notes, and receipt images to your loans and transactions."
+                                showProFeatureLockedDialog = true
+                            } else {
+                                showAttachmentSourceDialog = true
+                            }
+                        },
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(48.dp)
@@ -1206,6 +1258,10 @@ fun AddLoanDialog(
                             fontWeight = FontWeight.Bold,
                             color = BluePrimary
                         )
+                        if (!isProPlan) {
+                            Spacer(modifier = Modifier.width(6.dp))
+                            ProBadge()
+                        }
                     }
 
                     // Selection Dialog: Select from Gallery or Take from Camera
@@ -1488,6 +1544,18 @@ fun AddLoanDialog(
             },
             onSaveBorrower = { newBorrower ->
                 onSaveBorrower(newBorrower)
+            }
+        )
+    }
+
+    if (showProFeatureLockedDialog) {
+        ProFeatureLockedDialog(
+            featureTitle = lockedFeatureTitle,
+            featureDescription = lockedFeatureDesc,
+            onDismiss = { showProFeatureLockedDialog = false },
+            onUpgrade = {
+                showProFeatureLockedDialog = false
+                onRequestUpgrade()
             }
         )
     }

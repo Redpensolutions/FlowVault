@@ -70,12 +70,16 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import android.widget.Toast
+import androidx.compose.ui.platform.LocalContext
 import com.example.data.model.Loan
 import com.example.ui.components.AddLoanDialog
 import com.example.ui.components.AddVirtualAccountDialog
 import com.example.ui.components.AppLockScreen
 import com.example.ui.components.LoanDetailsDialog
+import com.example.ui.components.ProFeatureLockedDialog
 import com.example.ui.components.RecordPaymentDialog
+import com.example.ui.components.SubscriptionPlansDialog
 import com.example.ui.components.TransferFundsDialog
 import java.util.Locale
 import com.example.ui.screens.dashboard.AdminDashboardScreen
@@ -171,6 +175,11 @@ fun MainAppScreen(viewModel: LoanViewModel) {
     val virtualAccounts by viewModel.allVirtualAccounts.collectAsStateWithLifecycle()
     val currency by viewModel.defaultCurrency.collectAsStateWithLifecycle()
     val defaultInterestType by viewModel.defaultInterestType.collectAsStateWithLifecycle()
+    val isPro by viewModel.isProPlan.collectAsStateWithLifecycle()
+    val planTier by viewModel.currentPlanTier.collectAsStateWithLifecycle()
+    val billingCycle by viewModel.currentBillingCycle.collectAsStateWithLifecycle()
+    val drivePurchased by viewModel.driveSyncPurchasedInFree.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     val overdueCount = allLoans.count { it.isOverdue }
 
@@ -186,6 +195,37 @@ fun MainAppScreen(viewModel: LoanViewModel) {
     var showTransferFundsDialog by remember { mutableStateOf(false) }
     var selectedBorrowerForDetail by remember { mutableStateOf<String?>(null) }
     var showNotificationsScreen by remember { mutableStateOf(false) }
+    var showProLimitDialog by remember { mutableStateOf(false) }
+    var proLimitTitle by remember { mutableStateOf("") }
+    var proLimitDescription by remember { mutableStateOf("") }
+    var showSubscriptionPlansDialog by remember { mutableStateOf(false) }
+
+    val handleOpenAddLoan: (String) -> Unit = { dir ->
+        if (!viewModel.canAddActiveLoan()) {
+            val limit = if (isPro) 59 else 5
+            proLimitTitle = "Active Loan Limit Reached"
+            proLimitDescription = if (isPro) {
+                "You have reached the Pro limit of $limit active loans. Settle existing loans before recording new ones."
+            } else {
+                "Free Tier allows tracking up to 5 Active loans.\n\nYou currently have 5 active loans. Upgrade to Pro (₹99/mo) to track up to 59 active loans!"
+            }
+            showProLimitDialog = true
+        } else {
+            addLoanDirection = dir
+            preselectedBorrowerName = null
+            showAddLoanDialog = true
+        }
+    }
+
+    val handleOpenAddVirtualAccount: () -> Unit = {
+        if (!viewModel.canAddVirtualAccount()) {
+            proLimitTitle = "Virtual Account Limit Reached"
+            proLimitDescription = "Free Tier allows tracking up to 3 Virtual Accounts & Ledger Pools.\n\nYou currently have 3 accounts. Upgrade to Pro (₹99/mo) to unlock unlimited Virtual Accounts and Ledger Pools!"
+            showProLimitDialog = true
+        } else {
+            showAddVirtualAccountDialog = true
+        }
+    }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val scope = rememberCoroutineScope()
@@ -281,11 +321,7 @@ fun MainAppScreen(viewModel: LoanViewModel) {
                             viewModel.setLoanStatusFilter("OVERDUE")
                             currentSection = AppSection.LOANS
                         },
-                        onOpenAddLoan = { dir ->
-                            addLoanDirection = dir
-                            preselectedBorrowerName = null
-                            showAddLoanDialog = true
-                        },
+                        onOpenAddLoan = handleOpenAddLoan,
                         onOpenRecordPayment = {
                             val activeLoan = allLoans.firstOrNull { it.balanceRemaining > 0 } ?: allLoans.firstOrNull()
                             if (activeLoan != null) {
@@ -297,7 +333,7 @@ fun MainAppScreen(viewModel: LoanViewModel) {
                                 }
                             }
                         },
-                        onOpenAddVirtualAccount = { showAddVirtualAccountDialog = true },
+                        onOpenAddVirtualAccount = handleOpenAddVirtualAccount,
                         onSelectLoanForDetails = { loanForDetails = it },
                         onSelectLoanForPayment = {
                             isPaymentFromQuickOperations = false
@@ -402,11 +438,7 @@ fun MainAppScreen(viewModel: LoanViewModel) {
                             viewModel.setLoanStatusFilter("OVERDUE")
                             currentSection = AppSection.LOANS
                         },
-                        onOpenAddLoan = { dir ->
-                            addLoanDirection = dir
-                            preselectedBorrowerName = null
-                            showAddLoanDialog = true
-                        },
+                        onOpenAddLoan = handleOpenAddLoan,
                         onOpenRecordPayment = {
                             val activeLoan = allLoans.firstOrNull { it.balanceRemaining > 0 } ?: allLoans.firstOrNull()
                             if (activeLoan != null) {
@@ -418,7 +450,7 @@ fun MainAppScreen(viewModel: LoanViewModel) {
                                 }
                             }
                         },
-                        onOpenAddVirtualAccount = { showAddVirtualAccountDialog = true },
+                        onOpenAddVirtualAccount = handleOpenAddVirtualAccount,
                         onSelectLoanForDetails = { loanForDetails = it },
                         onSelectLoanForPayment = {
                             isPaymentFromQuickOperations = false
@@ -450,10 +482,21 @@ fun MainAppScreen(viewModel: LoanViewModel) {
             viewModel = viewModel,
             onBack = { selectedBorrowerForDetail = null },
             onOpenAddLoanForBorrower = { bName ->
-                val bLoan = allLoans.firstOrNull { it.borrowerName.equals(bName, ignoreCase = true) }
-                addLoanDirection = bLoan?.direction ?: "GIVEN"
-                preselectedBorrowerName = bName
-                showAddLoanDialog = true
+                if (!viewModel.canAddActiveLoan()) {
+                    val limit = if (isPro) 59 else 5
+                    proLimitTitle = "Active Loan Limit Reached"
+                    proLimitDescription = if (isPro) {
+                        "You have reached the Pro limit of $limit active loans. Settle existing loans before recording new ones."
+                    } else {
+                        "Free Tier allows tracking up to 5 Active loans.\n\nYou currently have 5 active loans. Upgrade to Pro (₹99/mo) to track up to 59 active loans!"
+                    }
+                    showProLimitDialog = true
+                } else {
+                    val bLoan = allLoans.firstOrNull { it.borrowerName.equals(bName, ignoreCase = true) }
+                    addLoanDirection = bLoan?.direction ?: "GIVEN"
+                    preselectedBorrowerName = bName
+                    showAddLoanDialog = true
+                }
             },
             onOpenPaymentForLoan = { loan ->
                 isPaymentFromQuickOperations = false
@@ -472,6 +515,8 @@ fun MainAppScreen(viewModel: LoanViewModel) {
             defaultInterestType = defaultInterestType,
             initialDirection = addLoanDirection,
             initialBorrowerName = preselectedBorrowerName ?: "",
+            isProPlan = isPro,
+            onRequestUpgrade = { showSubscriptionPlansDialog = true },
             onDismiss = {
                 showAddLoanDialog = false
                 preselectedBorrowerName = null
@@ -518,6 +563,8 @@ fun MainAppScreen(viewModel: LoanViewModel) {
             currencySymbol = currency,
             allLoans = allLoans,
             allowBorrowerSelection = isPaymentFromQuickOperations,
+            isProPlan = isPro,
+            onRequestUpgrade = { showSubscriptionPlansDialog = true },
             onDismiss = {
                 loanForPayment = null
                 isPaymentFromQuickOperations = false
@@ -698,6 +745,40 @@ fun MainAppScreen(viewModel: LoanViewModel) {
             dismissButton = {
                 TextButton(onClick = { showNamePromptDialog = false }) {
                     Text("Skip for Now")
+                }
+            }
+        )
+    }
+
+    if (showProLimitDialog) {
+        ProFeatureLockedDialog(
+            featureTitle = proLimitTitle,
+            featureDescription = proLimitDescription,
+            onDismiss = { showProLimitDialog = false },
+            onUpgrade = {
+                showProLimitDialog = false
+                showSubscriptionPlansDialog = true
+            }
+        )
+    }
+
+    if (showSubscriptionPlansDialog) {
+        SubscriptionPlansDialog(
+            currentPlanTier = planTier,
+            currentBillingCycle = billingCycle,
+            driveSyncPurchasedInFree = drivePurchased,
+            onDismiss = { showSubscriptionPlansDialog = false },
+            onSelectPro = { cycle ->
+                viewModel.upgradeToPro(cycle)
+                Toast.makeText(context, "Upgraded to FlowVault Pro (${cycle.cycleName})!", Toast.LENGTH_SHORT).show()
+            },
+            onSelectFree = {
+                viewModel.downgradeToFree()
+                Toast.makeText(context, "Switched to Free Tier", Toast.LENGTH_SHORT).show()
+            },
+            onPurchaseDriveSync = {
+                viewModel.purchaseDriveSyncInFree {
+                    Toast.makeText(context, "Google Drive Safe Backup unlocked for ₹59!", Toast.LENGTH_SHORT).show()
                 }
             }
         )

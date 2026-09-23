@@ -70,6 +70,8 @@ import androidx.compose.ui.window.Dialog
 import androidx.compose.ui.window.DialogProperties
 import com.example.data.model.Loan
 import com.example.data.model.VirtualAccount
+import com.example.ui.components.ProBadge
+import com.example.ui.components.ProFeatureLockedDialog
 import com.example.ui.theme.BluePrimary
 import com.example.ui.theme.BorderSubtle
 import com.example.ui.theme.FinanceGreen
@@ -97,6 +99,8 @@ fun RecordPaymentDialog(
     currencySymbol: String = "₹",
     allLoans: List<Loan> = emptyList(),
     allowBorrowerSelection: Boolean = false,
+    isProPlan: Boolean = false,
+    onRequestUpgrade: () -> Unit = {},
     onDismiss: () -> Unit,
     onConfirmPayment: (
         targetLoan: Loan,
@@ -200,6 +204,7 @@ fun RecordPaymentDialog(
     var notes by remember { mutableStateOf("") }
     var attachmentName by remember { mutableStateOf<String?>(null) }
     var showAttachmentDialog by remember { mutableStateOf(false) }
+    var showProLockedDialog by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
 
     // Date calculations
@@ -1045,19 +1050,27 @@ fun RecordPaymentDialog(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Column {
-                            Text(
-                                text = "Attachments",
-                                fontSize = 14.sp,
-                                color = if (attachmentName != null) TextPrimary else TextMuted
-                            )
-                            if (attachmentName != null) {
-                                Text(
-                                    text = attachmentName ?: "",
-                                    fontSize = 12.sp,
-                                    color = TealPrimary,
-                                    fontWeight = FontWeight.SemiBold
-                                )
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Column {
+                                Row(verticalAlignment = Alignment.CenterVertically) {
+                                    Text(
+                                        text = "Attachments",
+                                        fontSize = 14.sp,
+                                        color = if (attachmentName != null) TextPrimary else TextMuted
+                                    )
+                                    if (!isProPlan) {
+                                        Spacer(modifier = Modifier.width(6.dp))
+                                        ProBadge()
+                                    }
+                                }
+                                if (attachmentName != null) {
+                                    Text(
+                                        text = attachmentName ?: "",
+                                        fontSize = 12.sp,
+                                        color = TealPrimary,
+                                        fontWeight = FontWeight.SemiBold
+                                    )
+                                }
                             }
                         }
 
@@ -1065,15 +1078,21 @@ fun RecordPaymentDialog(
                             modifier = Modifier
                                 .size(32.dp)
                                 .clip(CircleShape)
-                                .background(TealPrimary)
-                                .clickable { showAttachmentDialog = true }
+                                .background(if (isProPlan) TealPrimary else Color(0xFFE2E8F0))
+                                .clickable {
+                                    if (!isProPlan) {
+                                        showProLockedDialog = true
+                                    } else {
+                                        showAttachmentDialog = true
+                                    }
+                                }
                                 .testTag("add_attachment_btn"),
                             contentAlignment = Alignment.Center
                         ) {
                             Icon(
                                 imageVector = Icons.Default.Add,
                                 contentDescription = "Add Attachment",
-                                tint = Color.White,
+                                tint = if (isProPlan) Color.White else Color(0xFF64748B),
                                 modifier = Modifier.size(20.dp)
                             )
                         }
@@ -1176,6 +1195,18 @@ fun RecordPaymentDialog(
                 TextButton(onClick = { showAttachmentDialog = false }) {
                     Text("Cancel", color = TextSecondary)
                 }
+            }
+        )
+    }
+
+    if (showProLockedDialog) {
+        ProFeatureLockedDialog(
+            featureTitle = "Photo Attachments",
+            featureDescription = "Photo attachments on transactions and payments is a FlowVault Pro feature.\n\nIn Free Tier, photo attachments are disabled. Upgrade to Pro (₹99/mo) to attach payment slips, cheques, and proof receipts.",
+            onDismiss = { showProLockedDialog = false },
+            onUpgrade = {
+                showProLockedDialog = false
+                onRequestUpgrade()
             }
         )
     }

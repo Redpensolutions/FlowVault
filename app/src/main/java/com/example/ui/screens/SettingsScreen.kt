@@ -9,6 +9,8 @@ import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -84,8 +86,12 @@ import androidx.compose.ui.text.withStyle
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.example.data.model.BillingCycle
+import com.example.data.model.PlanTier
+import com.example.ui.components.GoldCrown
 import com.example.ui.components.PrimaryBlueButton
 import com.example.ui.components.SecondaryBlueButton
+import com.example.ui.components.SubscriptionPlansDialog
 import com.example.ui.theme.BackgroundClean
 import com.example.ui.theme.BlueDark
 import com.example.ui.theme.BlueLight
@@ -114,6 +120,9 @@ fun SettingsScreen(
     val userEmail by viewModel.userEmail.collectAsStateWithLifecycle()
     val userPhone by viewModel.userPhone.collectAsStateWithLifecycle()
     val currentPlan by viewModel.currentPlan.collectAsStateWithLifecycle()
+    val planTier by viewModel.currentPlanTier.collectAsStateWithLifecycle()
+    val billingCycle by viewModel.currentBillingCycle.collectAsStateWithLifecycle()
+    val driveSyncPurchasedInFree by viewModel.driveSyncPurchasedInFree.collectAsStateWithLifecycle()
     val pinEnabled by viewModel.pinSecurityEnabled.collectAsStateWithLifecycle()
     val biometricEnabled by viewModel.biometricSecurityEnabled.collectAsStateWithLifecycle()
     val faceUnlockEnabled by viewModel.faceUnlockEnabled.collectAsStateWithLifecycle()
@@ -130,7 +139,9 @@ fun SettingsScreen(
     var showLogoutDialog by remember { mutableStateOf(false) }
     var showDeleteAccountDialog by remember { mutableStateOf(false) }
     var showFeatureRequestDialog by remember { mutableStateOf(false) }
-    var featureSubject by remember { mutableStateOf("FlowVault Feature") }
+    var featureName by remember { mutableStateOf("") }
+    var featureMobile by remember { mutableStateOf("") }
+    var featureEmail by remember { mutableStateOf("") }
     var featureDescription by remember { mutableStateOf("") }
     var actionToastMessage by remember { mutableStateOf<String?>(null) }
 
@@ -266,13 +277,16 @@ fun SettingsScreen(
 
             // 2. Current Plan Item
             item {
+                val isPro = planTier == PlanTier.PRO
                 SettingsNavigationItemCard(
                     title = "Current Plan",
                     subtitle = currentPlan,
                     icon = Icons.Default.WorkspacePremium,
-                    iconTint = TealSlate,
-                    iconBg = TealLight,
-                    badgeText = "ACTIVE",
+                    iconTint = if (isPro) GoldCrown else TealSlate,
+                    iconBg = if (isPro) Color(0xFFFEF3C7) else TealLight,
+                    badgeText = if (isPro) "PRO ACTIVE" else "FREE TIER",
+                    badgeBg = if (isPro) Color(0xFFFEF3C7) else TealLight,
+                    badgeTint = if (isPro) GoldCrown else TealSlate,
                     onClick = { showCurrentPlanDialog = true },
                     testTag = "settings_current_plan_item"
                 )
@@ -328,7 +342,7 @@ fun SettingsScreen(
             item {
                 SettingsNavigationItemCard(
                     title = "New Feature Request",
-                    subtitle = "Request improvements or submit feedback to contact@redpensolutions.in",
+                    subtitle = "Suggest new features or improvements for FlowVault",
                     icon = Icons.Default.Email,
                     iconTint = Color(0xFFE65100),
                     iconBg = Color(0xFFFFF3E0),
@@ -336,7 +350,9 @@ fun SettingsScreen(
                     badgeBg = Color(0xFFFFF3E0),
                     badgeTint = Color(0xFFE65100),
                     onClick = {
-                        featureSubject = "FlowVault Feature"
+                        featureName = userName
+                        featureMobile = userPhone
+                        featureEmail = userEmail
                         featureDescription = ""
                         showFeatureRequestDialog = true
                     },
@@ -420,31 +436,25 @@ fun SettingsScreen(
         }
     }
 
-    // Dialog 1: Current Plan Details
+    // Dialog 1: Subscription & Plan Management
     if (showCurrentPlanDialog) {
-        AlertDialog(
-            onDismissRequest = { showCurrentPlanDialog = false },
-            title = {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(Icons.Default.WorkspacePremium, contentDescription = null, tint = TealSlate)
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text("Current Plan: Free Tier", fontWeight = FontWeight.Bold)
-                }
+        SubscriptionPlansDialog(
+            currentPlanTier = planTier,
+            currentBillingCycle = billingCycle,
+            driveSyncPurchasedInFree = driveSyncPurchasedInFree,
+            onDismiss = { showCurrentPlanDialog = false },
+            onSelectPro = { cycle ->
+                viewModel.upgradeToPro(cycle)
+                actionToastMessage = "Upgraded to FlowVault Pro (${cycle.cycleName}) successfully!"
             },
-            text = {
-                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    Text("Your account has access to all core lending and debt tracking tools:", fontSize = 13.sp, color = TextSecondary)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    PlanFeatureRow("Unlimited Given & Taken Loans")
-                    PlanFeatureRow("Simple, Compound & Flat Calculations")
-                    PlanFeatureRow("Virtual Accounts & Ledger Pools")
-                    PlanFeatureRow("Offline-First SQLite Database")
-                    PlanFeatureRow("App Security (PIN & Biometrics)")
-                    PlanFeatureRow("Google Drive safe backup (Rs.99 one time)")
-                }
+            onSelectFree = {
+                viewModel.downgradeToFree()
+                actionToastMessage = "Switched to Free Tier."
             },
-            confirmButton = {
-                PrimaryBlueButton(text = "Done", onClick = { showCurrentPlanDialog = false })
+            onPurchaseDriveSync = {
+                viewModel.purchaseDriveSyncInFree {
+                    actionToastMessage = "Google Drive Safe Backup unlocked for ₹59!"
+                }
             }
         )
     }
@@ -618,31 +628,59 @@ fun SettingsScreen(
                         )
                     }
                     Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text("New Feature Request", fontWeight = FontWeight.Bold, fontSize = 17.sp)
-                        Text("contact@redpensolutions.in", fontSize = 11.sp, color = TextMuted)
-                    }
+                    Text("New Feature Request", fontWeight = FontWeight.Bold, fontSize = 17.sp)
                 }
             },
             text = {
                 Column(
-                    modifier = Modifier.fillMaxWidth(),
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .verticalScroll(rememberScrollState()),
                     verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
-                    Text(
-                        "Describe the new feature or enhancement you would like to see added to FlowVault:",
-                        fontSize = 13.sp,
-                        color = TextSecondary
-                    )
-
                     OutlinedTextField(
-                        value = featureSubject,
-                        onValueChange = { featureSubject = it },
-                        label = { Text("Subject", fontSize = 12.sp) },
+                        value = featureName,
+                        onValueChange = { featureName = it },
+                        label = { Text("Name", fontSize = 12.sp) },
+                        placeholder = { Text("Enter your name", fontSize = 12.sp) },
                         singleLine = true,
                         modifier = Modifier
                             .fillMaxWidth()
-                            .testTag("feature_request_subject_input"),
+                            .testTag("feature_request_name_input"),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BluePrimary,
+                            unfocusedBorderColor = BorderSubtle
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = featureMobile,
+                        onValueChange = { featureMobile = it },
+                        label = { Text("Mobile Number", fontSize = 12.sp) },
+                        placeholder = { Text("Enter mobile number", fontSize = 12.sp) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Phone),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("feature_request_mobile_input"),
+                        shape = RoundedCornerShape(10.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = BluePrimary,
+                            unfocusedBorderColor = BorderSubtle
+                        )
+                    )
+
+                    OutlinedTextField(
+                        value = featureEmail,
+                        onValueChange = { featureEmail = it },
+                        label = { Text("Email ID", fontSize = 12.sp) },
+                        placeholder = { Text("Enter email address", fontSize = 12.sp) },
+                        singleLine = true,
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Email),
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .testTag("feature_request_email_input"),
                         shape = RoundedCornerShape(10.dp),
                         colors = OutlinedTextFieldDefaults.colors(
                             focusedBorderColor = BluePrimary,
@@ -654,7 +692,7 @@ fun SettingsScreen(
                         value = featureDescription,
                         onValueChange = { featureDescription = it },
                         label = { Text("Feature Details", fontSize = 12.sp) },
-                        placeholder = { Text("Enter details about the requested feature or workflow...", fontSize = 12.sp) },
+                        placeholder = { Text("Describe the feature or workflow you'd like to see...", fontSize = 12.sp) },
                         minLines = 4,
                         maxLines = 6,
                         modifier = Modifier
@@ -666,30 +704,6 @@ fun SettingsScreen(
                             unfocusedBorderColor = BorderSubtle
                         )
                     )
-
-                    Surface(
-                        color = BackgroundClean,
-                        shape = RoundedCornerShape(8.dp),
-                        modifier = Modifier.fillMaxWidth()
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                Icons.Default.CheckCircle,
-                                contentDescription = null,
-                                tint = FinanceGreen,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Recipient: contact@redpensolutions.in",
-                                fontSize = 11.sp,
-                                color = TextMuted
-                            )
-                        }
-                    }
                 }
             },
             confirmButton = {
@@ -697,10 +711,10 @@ fun SettingsScreen(
                     text = "Send Request",
                     onClick = {
                         if (featureDescription.isBlank()) {
-                            Toast.makeText(context, "Please describe the feature you want", Toast.LENGTH_SHORT).show()
+                            Toast.makeText(context, "Please enter feature details", Toast.LENGTH_SHORT).show()
                             return@PrimaryBlueButton
                         }
-                        val finalSubject = featureSubject.ifBlank { "FlowVault Feature" }
+                        val finalSubject = "FlowVault Feature"
                         val mailUri = Uri.parse("mailto:contact@redpensolutions.in")
                         val emailIntent = Intent(Intent.ACTION_SENDTO, mailUri).apply {
                             putExtra(Intent.EXTRA_EMAIL, arrayOf("contact@redpensolutions.in"))
@@ -708,13 +722,13 @@ fun SettingsScreen(
                             val body = buildString {
                                 appendLine("Feature Request: $finalSubject")
                                 appendLine()
-                                appendLine("Description:")
+                                appendLine("Feature Details:")
                                 appendLine(featureDescription.trim())
                                 appendLine()
                                 appendLine("---")
-                                appendLine("User: ${userName.ifBlank { "FlowVault User" }}")
-                                if (userEmail.isNotBlank()) appendLine("Email: $userEmail")
-                                if (userPhone.isNotBlank()) appendLine("Phone: $userPhone")
+                                appendLine("Name: ${featureName.trim().ifBlank { userName.ifBlank { "FlowVault User" } }}")
+                                appendLine("Mobile Number: ${featureMobile.trim().ifBlank { userPhone.ifBlank { "Not provided" } }}")
+                                appendLine("Email ID: ${featureEmail.trim().ifBlank { userEmail.ifBlank { "Not provided" } }}")
                                 appendLine("App Version: 2.4.0")
                             }
                             putExtra(Intent.EXTRA_TEXT, body)

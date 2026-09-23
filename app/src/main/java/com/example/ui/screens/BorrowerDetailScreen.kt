@@ -1,5 +1,6 @@
 package com.example.ui.screens
 
+import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
@@ -38,6 +39,7 @@ import androidx.compose.material.icons.filled.KeyboardArrowDown
 import androidx.compose.material.icons.filled.KeyboardArrowUp
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Payments
+import androidx.compose.material.icons.filled.PictureAsPdf
 import androidx.compose.material.icons.filled.TrendingUp
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -62,6 +64,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.testTag
 import androidx.compose.ui.text.font.FontStyle
 import androidx.compose.ui.text.font.FontWeight
@@ -74,6 +77,9 @@ import androidx.compose.ui.window.DialogProperties
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.example.data.model.Loan
 import com.example.ui.components.BorrowerAvatar
+import com.example.ui.components.ProBadge
+import com.example.ui.components.ProFeatureLockedDialog
+import com.example.ui.components.SubscriptionPlansDialog
 import com.example.ui.components.formatCurrency
 import com.example.ui.components.formatDate
 import com.example.ui.dialogs.TopUpLoanDialog
@@ -91,6 +97,7 @@ import com.example.ui.theme.TextMuted
 import com.example.ui.theme.TextPrimary
 import com.example.ui.theme.TextSecondary
 import com.example.ui.viewmodel.LoanViewModel
+import com.example.util.PdfExportHelper
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -117,13 +124,26 @@ fun BorrowerDetailScreen(
     val allLoans by viewModel.allLoans.collectAsStateWithLifecycle()
     val virtualAccounts by viewModel.allVirtualAccounts.collectAsStateWithLifecycle()
     val currency by viewModel.defaultCurrency.collectAsStateWithLifecycle()
+    val allLedgerEntries by viewModel.allLedgerEntries.collectAsStateWithLifecycle()
+    val isPro by viewModel.isProPlan.collectAsStateWithLifecycle()
+    val planTier by viewModel.currentPlanTier.collectAsStateWithLifecycle()
+    val billingCycle by viewModel.currentBillingCycle.collectAsStateWithLifecycle()
+    val drivePurchased by viewModel.driveSyncPurchasedInFree.collectAsStateWithLifecycle()
+    val context = LocalContext.current
 
     val borrowerLoans = remember(allLoans, borrowerName) {
         allLoans.filter { it.borrowerName.equals(borrowerName, ignoreCase = true) }
     }
 
+    val borrowerLoanIds = remember(borrowerLoans) { borrowerLoans.map { it.id }.toSet() }
+    val borrowerLedgerEntries = remember(allLedgerEntries, borrowerLoanIds) {
+        allLedgerEntries.filter { it.loanId != null && it.loanId in borrowerLoanIds }
+    }
+
     var selectedTab by remember { mutableStateOf("PENDING") } // "PENDING" or "HISTORY"
     var showOptionsMenu by remember { mutableStateOf(false) }
+    var showProLockedDialog by remember { mutableStateOf(false) }
+    var showSubscriptionDialog by remember { mutableStateOf(false) }
 
     // Dialog state for loan actions and topup
     var selectedLoanForActions by remember { mutableStateOf<Loan?>(null) }
@@ -281,6 +301,39 @@ fun BorrowerDetailScreen(
                                     }
                                 )
                             }
+                            DropdownMenuItem(
+                                text = {
+                                    Row(verticalAlignment = Alignment.CenterVertically) {
+                                        Text("Export to PDF")
+                                        if (!isPro) {
+                                            Spacer(modifier = Modifier.width(6.dp))
+                                            ProBadge()
+                                        }
+                                    }
+                                },
+                                onClick = {
+                                    showOptionsMenu = false
+                                    if (!isPro) {
+                                        showProLockedDialog = true
+                                    } else {
+                                        val pdf = PdfExportHelper.exportBorrowerPdf(
+                                            context = context,
+                                            borrowerName = borrowerName,
+                                            loans = borrowerLoans,
+                                            ledgerEntries = borrowerLedgerEntries,
+                                            currencySymbol = currency
+                                        )
+                                        PdfExportHelper.sharePdfFile(
+                                            context = context,
+                                            pdfFile = pdf,
+                                            subject = "Customer Ledger Statement - $borrowerName"
+                                        )
+                                    }
+                                },
+                                leadingIcon = {
+                                    Icon(Icons.Default.PictureAsPdf, contentDescription = null, tint = FinanceRed)
+                                }
+                            )
                         }
                     }
                 }
@@ -557,6 +610,40 @@ fun BorrowerDetailScreen(
                     note = note
                 ) {
                     loanForTopUp = null
+                }
+            }
+        )
+    }
+
+    if (showProLockedDialog) {
+        ProFeatureLockedDialog(
+            featureTitle = "Export Ledger to PDF",
+            featureDescription = "Generating customer ledger statements and PDFs with transaction history is a FlowVault Pro feature.\n\nIn Free Tier, PDF export is disabled. Upgrade to Pro (₹99/mo) to export and share branded ledger statements.",
+            onDismiss = { showProLockedDialog = false },
+            onUpgrade = {
+                showProLockedDialog = false
+                showSubscriptionDialog = true
+            }
+        )
+    }
+
+    if (showSubscriptionDialog) {
+        SubscriptionPlansDialog(
+            currentPlanTier = planTier,
+            currentBillingCycle = billingCycle,
+            driveSyncPurchasedInFree = drivePurchased,
+            onDismiss = { showSubscriptionDialog = false },
+            onSelectPro = { cycle ->
+                viewModel.upgradeToPro(cycle)
+                Toast.makeText(context, "Upgraded to FlowVault Pro (${cycle.cycleName})!", Toast.LENGTH_SHORT).show()
+            },
+            onSelectFree = {
+                viewModel.downgradeToFree()
+                Toast.makeText(context, "Switched to Free Tier", Toast.LENGTH_SHORT).show()
+            },
+            onPurchaseDriveSync = {
+                viewModel.purchaseDriveSyncInFree {
+                    Toast.makeText(context, "Google Drive Safe Backup unlocked for ₹59!", Toast.LENGTH_SHORT).show()
                 }
             }
         )
